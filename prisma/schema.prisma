@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  name          String?
+  username      String?    @unique
+  location      String?
+  avatarUrl     String?
+  verified      Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  // Relations
+  products       Product[]
+  tradeOffersAsSender    TradeOffer[] @relation("TradeOfferSender")
+  tradeOffersAsReceiver    TradeOffer[] @relation("TradeOfferReceiver")
+  userPreferences UserPreference?
+
+  @@map("users")
+}
+
+model UserPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  categories      Json     // Örn: { "electronics": ["laptop", "phone"], "fashion": ["shoes"] }
+  maxTradeDistance Int?    // km cinsinden maksimum takas mesafesi (opsiyonel)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_preferences")
+}
+
+model Product {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  category     String   // Örn: "electronics", "fashion", "home"
+  subcategory  String?  // Örn: "laptop", "shoes"
+  condition    String   // Örn: "new", "like-new", "used", "refurbished"
+  location     String?
+  userId       String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productImages ProductImage[]
+
+  @@map("products")
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  imageUrl  String
+  isPrimary Boolean  @default(false)
+  productId String
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_images")
+}
+
+model TradeOffer {
+  id              String    @id @default(cuid())
+  senderId        String
+  receiverId      String
+  productsSent    Json      // Gönderilen ürün ID'leri []string
+  productsReceived Json     // Alınan ürün ID'leri []string (opsiyonel, anlaşmaya bağlı)
+  status          TradeStatus @default(PENDING) // PENDING, ACCEPTED, REJECTED, WITHDRAWN
+  message         String?   // Teklif mesajı
+  respondedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sender   User @relation("TradeOfferSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("TradeOfferReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("trade_offers")
+  @@index([senderId, status])
+  @@index([receiverId, status])
+}
+
+enum TradeStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+model Message {
+  id          String   @id @default(cuid())
+  senderId    String
+  receiverId  String
+  content     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  sender   User @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation(fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@map("messages")
+  @@index([senderId, receiverId])
+}
