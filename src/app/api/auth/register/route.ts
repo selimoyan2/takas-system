@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, email, password } = body;
+    const name = typeof body.name === "string" ? body.name.trim() : "";
+    const email =
+      typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+    const password = typeof body.password === "string" ? body.password : "";
 
-    // Validation
     if (!name || !email || !password) {
       return NextResponse.json(
         { error: "Lütfen tüm alanları doldurun." },
@@ -24,8 +24,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already exists
-    const existingUser = await prisma.authUser.findUnique({
+    const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
@@ -36,11 +35,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user
-    const newUser = await prisma.authUser.create({
+    await prisma.user.create({
       data: {
         name,
         email,
@@ -58,7 +55,5 @@ export async function POST(request: NextRequest) {
       { error: "Sunucu hatası. Lütfen tekrar deneyin." },
       { status: 500 }
     );
-  } finally {
-    await prisma.$disconnect();
   }
 }

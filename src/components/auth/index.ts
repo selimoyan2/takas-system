@@ -1,2 +1,2 @@
-export * from "./auth/EmailInput";
-export * from "./auth/PasswordInput";
+export * from "./EmailInput";
+export * from "./PasswordInput";

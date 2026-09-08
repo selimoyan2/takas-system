@@ -1,23 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { EmailInput } from "@/components/auth/EmailInput";
 import { PasswordInput } from "@/components/auth/PasswordInput";
 import Link from "next/link";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
 
@@ -33,16 +33,16 @@ export default function LoginPage() {
         email,
         password,
         redirect: false,
-        callbackUrl: callbackUrl,
+        callbackUrl,
       });
 
       if (result?.error) {
-        setError(result.error);
+        setError("E-posta veya şifre hatalı.");
       } else {
         router.push(callbackUrl);
         router.refresh();
       }
-    } catch (err) {
+    } catch {
       setError("Giriş yapılırken bir hata oluştu.");
     } finally {
       setLoading(false);
@@ -60,7 +60,7 @@ export default function LoginPage() {
             Takas sisteminde hesabınızla giriş yapın
           </p>
         </div>
-        
+
         {error && (
           <div className="rounded-md bg-red-50 p-4">
             <p className="text-sm text-red-800">{error}</p>
@@ -68,30 +68,50 @@ export default function LoginPage() {
         )}
 
         <form className="space-y-6" onSubmit={handleSubmit}>
-          <EmailInput value={email} onChange={(e) => setEmail(e.target.value)} />
-          <PasswordInput 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
+          <EmailInput
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <PasswordInput
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
           />
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
-            >
-              {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
-            </button>
-          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50"
+          >
+            {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+          </button>
         </form>
 
         <p className="text-center text-sm text-gray-600">
           Hesabınız yok mu?{" "}
-          <Link href="/register" className="font-semibold text-indigo-600 hover:text-indigo-500">
+          <Link
+            href="/register"
+            className="font-semibold text-indigo-600 hover:text-indigo-500"
+          >
             Kayıt Ol
           </Link>
         </p>
       </div>
     </div>
+  );
+}
+
+function LoginFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
+      <p className="text-sm text-gray-500">Giriş sayfası yükleniyor...</p>
+    </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginForm />
+    </Suspense>
   );
 }
