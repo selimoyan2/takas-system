@@ -13,6 +13,9 @@ RUN npm ci --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Generate Prisma client
+RUN npx prisma generate
+
 # Build the app
 RUN npm run build
 
@@ -35,7 +38,7 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/prisma ./prisma
 
 # Create prisma directory for migrations if needed
-RUN mkdir -p prisma && chown -R nextjs:nodejs /app
+RUN mkdir -p prisma/migrations && chown -R nextjs:nodejs /app
 
 USER nextjs
 
