@@ -92,7 +92,10 @@ model User {
   messagesAsSender      Message[] @relation("MessageSender")
   messagesAsReceiver    Message[] @relation("MessageReceiver")
   favorites             Favorite[]
-  reviews               Review[]
+  reviewsWritten        Review[] @relation("ReviewsWritten")
+  reviewsReceived       Review[] @relation("ReviewsReceived")
+  reports               Report[]
+  notifications         Notification[]
 
   @@map("users")
 }
