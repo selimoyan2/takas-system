@@ -10,7 +10,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// NextAuth models
+// ==================== NEXTAUTH MODELS ====================
 model Account {
   id                 String  @id @default(cuid())
   userId             String
@@ -47,110 +47,373 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-model AuthUser {
-  id            String     @id @default(cuid())
-  name          String?
-  email         String     @unique
-  emailVerified DateTime?
-  image         String?
+// ==================== JETSWAP USER MODEL ====================
+// Kullanıcı rolleri: Standard Member (default), Verified Member, Admin
+enum UserRole {
+  STANDARD
+  VERIFIED
+  ADMIN
+}
 
-  accounts Account[]
-  sessions Session[]
+model User {
+  id                    String     @id @default(cuid())
+  email                 String     @unique
+  emailVerified         DateTime?
+  phone                 String?    @unique
+  phoneVerified         Boolean    @default(false)
+  name                  String?
+  username              String?    @unique
+  avatarUrl             String?
+  role                  UserRole   @default(STANDARD)
+  
+  // Konum bilgileri (Global platform için)
+  country               String     @default("Turkey")
+  region                String?
+  city                  String?
+  
+  // JetTrust güven puanı (0-100)
+  jetTrustScore         Int        @default(50) 
+  
+  // İstatistikler
+  completedSwaps        Int        @default(0)
+  successfulSwaps       Int        @default(0)
+  cancelledSwaps        Int        @default(0)
+  
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 
-  // Takas sistemi relation'ları (NextAuth user field'larını kullanıyoruz ama kendi modelimizi de tutuyoruz)
-  products            Product[]
-  tradeOffersAsSender TradeOffer[] @relation("TradeOfferSender")
-  tradeOffersAsReceiver TradeOffer[] @relation("TradeOfferReceiver")
-  userPreferences     UserPreference?
-  messages AsSender[] @relation("MessageSender")
-  messagesAsReceiver Message[] @relation("MessageReceiver")
+  // Relations
+  accounts              Account[]
+  sessions              Session[]
+  products              Product[]
+  swapPreferences       SwapPreference?
+  offersAsSender        TradeOffer[] @relation("TradeOfferSender")
+  offersAsReceiver      TradeOffer[] @relation("TradeOfferReceiver")
+  messagesAsSender      Message[] @relation("MessageSender")
+  messagesAsReceiver    Message[] @relation("MessageReceiver")
+  favorites             Favorite[]
+  reviews               Review[]
 
   @@map("users")
 }
 
-// Takas sistemi modelleri
+// ==================== JETMATCH & MATCHING MODELS ====================
+model Category {
+  id           String   @id @default(cuid())
+  name         String   // Örn: "Electronics", "Fashion", "Home"
+  slug         String   @unique // Örn: "electronics"
+  icon         String?  // Icon SVG veya URL
+  image        String?
+  description  String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  
+  products Product[]
+  
+  @@map("categories")
+}
 
-model UserPreference {
-  id               String   @id @default(cuid())
-  userId           String   @unique
-  categories       Json     // Örn: { "electronics": ["laptop", "phone"], "fashion": ["shoes"] }
-  maxTradeDistance Int?     // km cinsinden maksimum takas mesafesi (opsiyonel)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+model Subcategory {
+  id           String   @id @default(cuid())
+  name         String   // Örn: "Laptop", "Phone"
+  slug         String   @unique
+  categoryId   String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
 
-  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id])
+  products Product[]
+  
+  @@map("subcategories")
+}
 
-  @@map("user_preferences")
+model Brand {
+  id           String   @id @default(cuid())
+  name         String   // Örn: "Apple", "Sony"
+  slug         String   @unique
+  logoUrl      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  products Product[]
+  
+  @@map("brands")
+}
+
+model SwapPreference {
+  id                    String   @id @default(cuid())
+  userId                String   @unique
+  
+  // Hangi kategorilerde takas yapmak istediği
+  preferredCategories   Json     // Örn: ["electronics", "fashion"] veya { "electronics": true }
+  
+  // Max mesafe (km)
+  maxTradeDistance      Int?     // null = dünya geneli
+  
+  // "Diğer tekliflere de açığım" seçeneği
+  openToOtherOffers     Boolean  @default(false)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("swap_preferences")
+}
+
+// ==================== PRODUCTS & PORTFOLIO ====================
+enum ProductStatus {
+  DRAFT
+  ACTIVE      // Takasta/aktif
+  EXCHANGED   // Takas edildi
+  ARCHIVED    // Pasif/silindi
 }
 
 model Product {
-  id           String   @id @default(cuid())
-  title        String
-  description  String?
-  category     String   // Örn: "electronics", "fashion", "home"
-  subcategory  String?  // Örn: "laptop", "shoes"
-  condition    String   // Örn: "new", "like-new", "used", "refurbished"
-  location     String?
-  userId       String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  user        AuthUser      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productImages ProductImage[]
-
+  id              String       @id @default(cuid())
+  title           String       // Örn: "iPhone 15 Pro"
+  slug            String       @unique
+  description     String?
+  
+  // Kategori bilgileri
+  categoryId      String
+  subcategoryId   String?
+  brandId         String?
+  
+  // Ürün özellikleri
+  condition       String       // Örn: "new", "like-new", "good", "used"
+  conditionDetails String?     // Detay (garanti, renk, depolama vb.)
+  year            Int?         // Örn: 2024
+  
+  // Konum
+  country         String       @default("Turkey")
+  region          String?
+  city            String?
+  
+  // Fotoğraflar
+  primaryImageId  String?
+  
+  status          ProductStatus @default(DRAFT)
+  isVerified      Boolean      @default(false)  // Admin onaylı mı?
+  
+  views           Int          @default(0)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  // Relations
+  category        Category     @relation(fields: [categoryId], references: [id])
+  subcategory?    Subcategory? @relation(fields: [subcategoryId], references: [id])
+  brand?          Brand?       @relation(fields: [brandId], references: [id])
+  productImages   ProductImage[]
+  
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  swapOffers      TradeOffer[]
+  
   @@map("products")
 }
 
 model ProductImage {
-  id        String   @id @default(cuid())
-  imageUrl  String
-  isPrimary Boolean  @default(false)
-  productId String
-  createdAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  imageUrl     String
+  altText      String?
+  isPrimary    Boolean  @default(false)
+  sortOrder    Int      @default(0)
+  productId    String
+  createdAt    DateTime @default(now())
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@map("product_images")
 }
 
+// ==================== TRADE OFFERS & MESSAGES ====================
+enum TradeOfferStatus {
+  PENDING     // Gönderildi
+  VIEWED      // Görüldü
+  NEGOTIATING // Görüşülüyor
+  COUNTERED   // Karşı teklif verildi
+  ACCEPTED    // Kabul edildi
+  REJECTED    // Reddedildi
+  WITHDRAWN   // Geri çekildi
+  EXCHANGED   // Takas tamamlandı
+}
+
 model TradeOffer {
-  id              String      @id @default(cuid())
-  senderId        String
-  receiverId      String
-  productsSent    Json        // Gönderilen ürün ID'leri []string
-  productsReceived Json?      // Alınan ürün ID'leri []string (opsiyonel, anlaşmaya bağlı)
-  status          TradeStatus @default(PENDING) // PENDING, ACCEPTED, REJECTED, WITHDRAWN
-  message         String?
-  respondedAt     DateTime?
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
+  id                    String        @id @default(cuid())
+  senderId              String
+  receiverId            String
+  
+  // Teklif edilen ürünler (gönderenin verdiği ürünler)
+  offeredProductIds     Json          // []string
+  requestedProductIds   Json?         // Alınmak istenen ürün ID'leri (opsiyonel, null ise "her şey" demek
+  
+  status                TradeOfferStatus @default(PENDING)
+  
+  // Mesajlar
+  initialMessage        String?
+  lastMessageAt         DateTime?
+  
+  respondedAt           DateTime?
+  contactUnlockedAt     DateTime?  // İletişim bilgileri açıldı mı?
+  exchangeConfirmedAt   DateTime?
+  
+  isCounterOffer        Boolean     @default(false)
+  parentOfferId         String?     // Karşı teklifse, orijinal teklifin ID'si
+  
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
 
-  sender   AuthUser @relation("TradeOfferSender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver AuthUser @relation("TradeOfferReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
-
-  @@map("trade_offers")
+  sender   User @relation("TradeOfferSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("TradeOfferReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
   @@index([senderId, status])
   @@index([receiverId, status])
+  @@map("trade_offers")
 }
 
 model Message {
-  id          String   @id @default(cuid())
-  senderId    String
-  receiverId  String
-  content     String
-  read        Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id           String   @id @default(cuid())
+  tradeOfferId String?
+  senderId     String
+  receiverId   String
+  content      String
+  isSystem     Boolean  @default(false)  // Sistem mesajı mı? (örn: "İletişim bilgileri açıldı")
+  read         Boolean  @default(false)
+  createdAt    DateTime @default(now())
 
-  sender   AuthUser @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
-  receiver AuthUser @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  tradeOffer TradeOffer? @relation(fields: [tradeOfferId], references: [id])
+  sender     User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   User @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
 
+  @@index([tradeOfferId, createdAt])
   @@map("messages")
-  @@index([senderId, receiverId])
 }
 
-enum TradeStatus {
+// ==================== MATCHING & JETMATCH ====================
+enum MatchType {
+  MUTUAL     // Karşılıklı (her ikisi de diğerinin ürünlerini istiyor)
+  ONE_WAY    // Tek yönlü (sadece biri diğerinin ürününü istiyor)
+  CHAIN      // Zincir (3'lü takas vb.)
+}
+
+model Match {
+  id              String   @id @default(cuid())
+  productId1      String
+  productId2      String?
+  matchType       MatchType @default(MUTUAL)
+  compatibilityScore Int     // 0-100 arası skor
+  
+  isPerfectMatch  Boolean  @default(false)  // %95+ uyum
+  source          String?  // Hangi algoritma/bildirimden geldi
+  viewedAt        DateTime?
+  
+  createdAt       DateTime @default(now())
+
+  product1 Product @relation(fields: [productId1], references: [id])
+  product2? Product @relation(fields: [productId2], references: [id])
+
+  @@unique([productId1, productId2, matchType])
+  @@map("matches")
+}
+
+// ==================== FAVORITES & REVIEWS ====================
+model Favorite {
+  id          String   @id @default(cuid())
+  userId      String
+  productId   String?
+  tradeOfferId String?  // Teklif favorilere eklenebilir mi?
+  createdAt   DateTime @default(now())
+
+  user     User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product? Product @relation(fields: [productId], references: [id])
+
+  @@unique([userId, productId])
+  @@map("favorites")
+}
+
+enum ReviewType {
+  SWAP      // Takas sonrası değerlendirme
+  PRODUCT   // Ürün yorumu
+  USER      // Kullanıcı yorumu (admin moderasyonu için)
+}
+
+model Review {
+  id              String   @id @default(cuid())
+  reviewerId      String
+  revieweeId      String?  // Kim değerlendirildi (kullanıcı veya ürün sahibi)
+  productId       String?
+  tradeOfferId    String?
+  
+  type            ReviewType @default(SWAP)
+  
+  rating          Int        // 1-5 yıldız
+  title           String?
+  content         String?
+  
+  isVerified      Boolean    @default(false)  // Takas tamamlandıktan sonra mi yazıldı?
+  
+  createdAt       DateTime   @default(now())
+
+  reviewer User @relation(fields: [reviewerId], references: [id])
+  reviewee? User @relation(fields: [revieweeId], references: [id])
+  product?  Product @relation(fields: [productId], references: [id])
+
+  @@map("reviews")
+}
+
+// ==================== REPORTS & MODERATION ====================
+enum ReportStatus {
   PENDING
-  ACCEPTED
-  REJECTED
-  WITHDRAWN
+  REVIEWING
+  RESOLVED
+  DISMISSED
+}
+
+model Report {
+  id            String   @id @default(cuid())
+  reporterId    String
+  targetId      String?  // Ürün ID veya Kullanıcı ID (birinde boş olacak)
+  targetType    String   // "product" veya "user"
+  
+  reason        String   // Şikayet nedeni
+  details       String?
+  
+  status        ReportStatus @default(PENDING)
+  resolvedAt    DateTime?
+  resolvedBy    String?  // Admin ID
+  
+  createdAt     DateTime @default(now())
+
+  reporter User @relation(fields: [reporterId], references: [id])
+  
+  @@map("reports")
+}
+
+// ==================== NOTIFICATIONS ====================
+enum NotificationType {
+  NEW_MATCH         // Yeni eşleşme
+  OFFER_RECEIVED    // Teklif alındı
+  OFFER_ACCEPTED    // Teklif kabul edildi
+  CONTACT_UNLOCKED  // İletişim bilgileri açıldı
+  MESSAGE           // Yeni mesaj
+  SWAP_COMPLETED    // Takas tamamlandı
+  REVIEW_RECEIVED   // Değerlendirme alındı
+  SYSTEM            // Sistem bildirimi
+}
+
+model Notification {
+  id              String   @id @default(cuid())
+  userId          String
+  type            NotificationType
+  title           String
+  body            String?
+  relatedId       String?  // İlgili match, offer vb. ID'si
+  
+  isRead          Boolean  @default(false)
+  readAt          DateTime?
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
 }
