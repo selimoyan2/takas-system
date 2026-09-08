@@ -112,6 +112,7 @@ model Category {
   createdAt    DateTime @default(now())
   
   products Product[]
+  subcategories Subcategory[]
   
   @@map("categories")
 }
@@ -182,6 +183,7 @@ model Product {
   categoryId      String
   subcategoryId   String?
   brandId         String?
+  userId          String
   
   // Ürün özellikleri
   condition       String       // Örn: "new", "like-new", "good", "used"
@@ -210,7 +212,10 @@ model Product {
   productImages   ProductImage[]
   
   user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  swapOffers      TradeOffer[]
+  favorites       Favorite[]
+  reviews         Review[]
+  matchesAsFirst  Match[] @relation("MatchProduct1")
+  matchesAsSecond Match[] @relation("MatchProduct2")
   
   @@map("products")
 }
@@ -255,7 +260,7 @@ model TradeOffer {
   // Mesajlar
   initialMessage        String?
   lastMessageAt         DateTime?
-  
+    
   respondedAt           DateTime?
   contactUnlockedAt     DateTime?  // İletişim bilgileri açıldı mı?
   exchangeConfirmedAt   DateTime?
@@ -268,6 +273,7 @@ model TradeOffer {
 
   sender   User @relation("TradeOfferSender", fields: [senderId], references: [id], onDelete: Cascade)
   receiver User @relation("TradeOfferReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  messages              Message[]
   
   @@index([senderId, status])
   @@index([receiverId, status])
@@ -312,8 +318,8 @@ model Match {
   
   createdAt       DateTime @default(now())
 
-  product1 Product @relation(fields: [productId1], references: [id])
-  product2? Product @relation(fields: [productId2], references: [id])
+  product1  Product  @relation("MatchProduct1", fields: [productId1], references: [id])
+  product2  Product? @relation("MatchProduct2", fields: [productId2], references: [id])
 
   @@unique([productId1, productId2, matchType])
   @@map("matches")
@@ -357,9 +363,9 @@ model Review {
   
   createdAt       DateTime   @default(now())
 
-  reviewer User @relation(fields: [reviewerId], references: [id])
-  reviewee? User @relation(fields: [revieweeId], references: [id])
-  product?  Product @relation(fields: [productId], references: [id])
+  reviewer User  @relation("ReviewsWritten", fields: [reviewerId], references: [id])
+  reviewee User? @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+  product  Product? @relation(fields: [productId], references: [id])
 
   @@map("reviews")
 }
