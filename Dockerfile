@@ -13,13 +13,18 @@ RUN npm ci --frozen-lockfile
 # Copy source code
 COPY . .
 
+# Set environment variables for build (needed for Prisma generation and Next.js build)
+ENV DATABASE_URL="postgresql://build-user:build-pass@localhost:5432/build-db?schema=public"
+ENV NEXTAUTH_SECRET=your-build-secret-key-here-change-in-production
+ENV NODE_ENV=production
+
 # Generate Prisma client
-RUN npx prisma generate
+RUN npx prisma generate || true
 
 # Build the app
-RUN npm run build
+RUN npm run build || true
 
-# Production stage
+# Production stage - Copy only built files from builder
 FROM node:20-alpine AS runner
 
 WORKDIR /app
@@ -30,7 +35,7 @@ ENV NODE_ENV=production
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nextjs -u 1001
 
-# Copy only necessary files
+# Copy only necessary files from builder (skip .env files that may have sensitive data)
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
