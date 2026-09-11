@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ export default function ProductCreateImagesPage() {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   // Load previous step data
-  React.useEffect(() => {
+  useEffect(() => {
     const savedDetails = localStorage.getItem("jetSwap_product_details");
     if (!savedDetails) {
       router.push("/products/create/details");

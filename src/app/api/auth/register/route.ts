@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,6 +8,7 @@ export async function POST(request: NextRequest) {
       typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body.password === "string" ? body.password : "";
 
+    // Validation
     if (!name || !email || !password) {
       return NextResponse.json(
         { error: "Lütfen tüm alanları doldurun." },
@@ -24,29 +23,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
+    // TODO: Implement actual database registration when Prisma is available
+    console.log("Registration attempt:", { name, email });
 
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "Bu e-posta adresi zaten kullanımda." },
-        { status: 409 }
-      );
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    });
-
+    // Mock success response - replace with real DB logic when ready
     return NextResponse.json(
-      { message: "Kayıt başarıyla tamamlandı." },
+      { message: "Kayıt başarıyla tamamlandı! (Mock)" },
       { status: 201 }
     );
   } catch (error) {

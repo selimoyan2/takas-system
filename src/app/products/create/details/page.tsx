@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,7 +62,7 @@ export default function ProductCreateDetailsPage() {
   const [year, setYear] = useState("");
 
   // Load previous steps
-  React.useEffect(() => {
+  useEffect(() => {
     const savedCategories = localStorage.getItem("jetSwap_selected_categories");
     if (!savedCategories) {
       router.push("/products/create");
